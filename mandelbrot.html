@@ -3,7 +3,7 @@
     <head>
         <title>Mandelbrot set</title>
             <style>
-                button {
+                button,select{
                     color: yellow;
                     background-color: red;
                     border: solid;
@@ -24,6 +24,7 @@
         scale:<b class='stats cont' type='text' id='scale_txt'></b><br/>
         <button class='cont' id='double_btn'>Zoom out</button>
         <button class='cont' id='half_btn'>Zoom in</button><br>
+        Number of threads:
         <select name="threads" id="thread_n_select">
             <option value="1">1</option>
             <option value="2">2</option>
