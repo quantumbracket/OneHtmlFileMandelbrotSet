@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Mandelbrot set</title>
+            <style>
+                button {
+                    color: yellow;
+                    background-color: red;
+                    border: solid;
+                    border-radius: 5px;
+                }
+
+            </style>
+            <meta charset='utf-8'>
+    </head>
+
+    
+    <body>
+        <canvas class='cont' id="scr" width="700" height="700"></canvas><br>
+
+
+        startx: <b class='stats cont' type='text' id='startx_txt'></b><br/>
+        starty: <b class='stats cont' type='text' id='starty_txt'></b><br/>
+        scale:<b class='stats cont' type='text' id='scale_txt'></b><br/>
+        <button class='cont' id='double_btn'>Zoom out</button>
+        <button class='cont' id='half_btn'>Zoom in</button><br>
+        <select name="threads" id="thread_n_select">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+        </select>
+
+        <p class='cont' id="status_log" style="color: red">
+ 
+    <script id="mandelbrot_draw">
+        class MandelbrotDraw {
+    
+           mod = (a,b) => ((a%b)+b)%b
+
+            //renderInfo: {scr_width,scr_height,startx,starty,scale,hue,sat}
+            //screenSegment: {offsety: offsety, buf: Uint8ClampedArray}
+            constructor(renderInfo,screenSegment){
+                Object.assign(this,renderInfo)
+                Object.assign(this,screenSegment)
+		        this.end = this.offsety+this.seg_len
+            }
+            check_divergence(c_r,c_i){
+                var z = [0,0]
+                var i = 0
+                while( i <= 100 && Math.sqrt(z[0]*z[0] + z[1]*z[1]) < 4 ){
+                    z = [z[0]*z[0] - z[1]*z[1] + c_r,   // z_r = z_r^2 - z_i^2 + c_r
+                        2*z[0]*z[1] + c_i]              // z_i = z_r*z_i + z_r*z_i + c_i
+                    i++
+                }
+
+                return [i,z]
+            }
+
+    
+           hsl_to_rgb(h,s,l){
+               var res = [0,0,0]
+               var c = (1-Math.abs(2*l-1))*s
+               var p = (h/60)
+               var x = c*(1-Math.abs(this.mod(p,2)-1))
+               var m = l-c/2
+    
+               // h/120 = p/2 which can optimize to p>>1
+               //var z_i = (Math.floor(h/120) + 2)%3
+               var z_i = this.mod((p>>1) + 2,3)
+               p = (~~p)%2
+               res[z_i] = 0
+               res[this.mod((z_i+1+p),3)] = c
+               res[this.mod((z_i-1-p),3)] = x
+    
+               return res.map(v => Math.round((v+m)*255))
+           }
+    
+    
+    
+           
+    
+    
+           write_pix(x,y,h,s,l){
+               var rgb = this.hsl_to_rgb(h,s/100,l/100)
+               var idx = (x+(y-this.offsety)*this.scr_width)*4
+               this.buf[idx] = rgb[0]
+               this.buf[idx+1] = rgb[1]
+               this.buf[idx+2] = rgb[2]
+               this.buf[idx+3] = 255 //alpha
+    
+           }
+    
+    
+    
+           draw(){
+               for(var x=0;x<this.scr_width;x++){
+                   for(var y=this.offsety;y<this.end;y++){
+                       var rx = (x-(this.scr_width/2))*this.scale + this.startx
+                       var ry = (y-(this.scr_height/2))*this.scale + this.starty
+                       var [i,z] = this.check_divergence(rx,ry)
+                       this.write_pix(x,y,this.hue+i%360,this.sat,i%100)
+                   }
+               }
+    
+           }
+        }
+
+
+    </script>
+
+    <script type='text/worker-js' id="workerjs">
+
+            var thread_id = null
+            var mandelbrot = null
+            var MandelbrotDraw = null
+            var init = true
+            // data passed in e.data(first time): [ thread_id, offsety, seg_len, MandelbrotDraw class]
+            // data passed in e.data(after init): [render_info, buf]
+            onmessage = function(e){
+                if(init){
+                    MandelbrotDraw = (new Function('return ('+e.data[3]+')'))()
+                    thread_id = e.data[0]
+                    mandelbrot = new MandelbrotDraw({scr_width: 0,scr_height: 0,startx: 0,starty:0,scale:0,hue:0,sat:0},{offsety: e.data[1], seg_len: e.data[2], buf: null})
+                    //console.log(`Thread #${thread_id} is ready`)
+                    init = false
+                }else{
+                    var render_info = e.data[0]
+                    mandelbrot.buf = new Uint8ClampedArray(e.data[1])
+                    Object.assign(mandelbrot,render_info)
+                    //console.log(`Thread #${thread_id} started rendering`)
+                    mandelbrot.draw()
+                    //console.log(`Thread #${thread_id} finished rendering`)
+
+                    postMessage([thread_id,e.data[1]],[e.data[1]])
+
+                }
+            }
+
+        </script>
+        
+
+
+
+
+    <script>
+        var canvas = document.getElementById('scr')
+        var ctx = canvas.getContext('2d',{alpha:false})
+
+        var startx_txt = document.getElementById('startx_txt')
+        var starty_txt = document.getElementById('starty_txt')
+        var scale_txt = document.getElementById('scale_txt')
+        var double_b = document.getElementById('double_btn')
+        var half_b = document.getElementById('half_btn')
+	    var status_log = document.getElementById('status_log')
+        var nthread_select = document.getElementById('thread_n_select')
+
+
+
+
+        var render_info =   {
+                scr_width: canvas.width,
+                scr_height: canvas.height,
+                startx: -0.8,
+                starty: 0,
+                scale: 0.004,
+                hue: 100,
+                sat: 100
+            }
+
+
+
+        var cur_hash_val = parseInt(location.hash.slice(1))
+        if(cur_hash_val <= 8 && cur_hash_val > 0){
+            n_threads = cur_hash_val
+        }else{
+            var n_threads = 8
+            location.hash = ""
+        }
+
+        nthread_select.value = n_threads.toString()
+
+        
+        var idata = ctx.createImageData(render_info.scr_width,render_info.scr_height)
+        var draw_buf = idata.data
+        var draw_data = ctx.putImageData.bind(ctx)
+    
+        var threads_working = 0
+        var screen_segments = []
+	    var idata_list = new Array(n_threads)
+        var offlen_list = []
+        var thread_workers = []
+
+        const worker_url = URL.createObjectURL(new Blob([document.getElementById('workerjs').textContent],{type:'text/javascript'}))
+
+        var mandelbrot = null
+
+
+        function thread_finish(e){
+            var thread_id = e.data[0]
+            var buf = e.data[1]
+            var {offset,len} = offlen_list[thread_id]
+
+	        screen_segments[thread_id] = buf
+                idata_list[thread_id] = new ImageData(new Uint8ClampedArray(buf), render_info.scr_width, len)
+                threads_working--
+	        if(threads_working == 0){
+		        idata_list.forEach((v,i) => {
+		    	    draw_data(v,0,offlen_list[i].offset)
+
+		        })
+	        	    status_log.innerText = 'Done'
+
+	        }
+        }
+
+        if(n_threads > 1 && typeof Worker !== "undefined"){
+            var scr_seg_size = ~~(render_info.scr_height/n_threads)
+            var buf_off_size = []
+            for(var x=0;x<n_threads;x++){
+                buf_off_size.push({offset: x*scr_seg_size,size: scr_seg_size})
+                thread_workers.push(new Worker(worker_url))
+            }
+            //add remainder to the last one
+            buf_off_size[n_threads-1].size += render_info.scr_height%n_threads
+
+            buf_off_size.forEach((v) => {
+                offlen_list.push({offset: v.offset,len: v.size})
+                screen_segments.push(new ArrayBuffer(render_info.scr_width*v.size*4))
+            })
+
+            thread_workers.forEach((v,i) => {
+                var {offset,len} = offlen_list[i]
+                v.onmessage = thread_finish
+                var mandelbrotdraw_str = document.getElementById('mandelbrot_draw').textContent
+                v.postMessage([i,offset,len,mandelbrotdraw_str])
+            })
+
+
+        }else{
+            mandelbrot = new MandelbrotDraw(render_info,
+                                            {
+                                                offsety: 0,
+                                                seg_len: render_info.scr_height,
+                                                buf: draw_buf
+                                            })
+        }
+
+
+
+
+        function do_draw(){
+            startx_txt.innerText = render_info.startx.toString()
+            starty_txt.innerText = render_info.starty.toString()
+            scale_txt.innerText = render_info.scale.toString()
+	        status_log.innerText = 'Rendering...'
+
+
+            if(mandelbrot !== null){
+                Object.assign(mandelbrot,render_info)
+                mandelbrot.draw()
+                draw_data(idata,0,0)
+	        	status_log.innerText = 'Done'
+            }else{
+                thread_workers.forEach((v,i) => {
+                    var buf = screen_segments[i]
+                    v.postMessage([render_info,buf],[buf])
+                    threads_working++
+                })
+
+            }
+        }
+
+
+
+        nthread_select.onchange = function(){
+            if(n_threads == parseInt(this.value)) return
+            location.hash = '#'+this.value
+            location.reload()
+        }
+
+        half_b.onclick = function(){
+	        if(threads_working == 0){
+            	render_info.scale /= 2
+            	do_draw()
+	        }
+        }
+
+        double_b.onclick = function(){
+	        if(threads_working == 0){
+            	render_info.scale *= 2
+            	do_draw()
+	        }
+        }
+
+
+
+
+        canvas.onclick = function(e){
+            var x = e.x-canvas.offsetLeft
+            var y = e.y-canvas.offsetTop
+
+	        if(threads_working == 0){
+           	    render_info.startx += (x-(render_info.scr_width/2))*render_info.scale
+           	    render_info.starty += (y-(render_info.scr_height/2))*render_info.scale
+           	    do_draw()
+	        }
+
+
+
+        }
+
+
+        
+       do_draw()
+
+
+
+    </script>
+
+
+    </body>
+
+
+</html>
