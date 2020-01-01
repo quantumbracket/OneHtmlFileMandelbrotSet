@@ -22,8 +22,8 @@
         startx: <b class='stats cont' type='text' id='startx_txt'></b><br/>
         starty: <b class='stats cont' type='text' id='starty_txt'></b><br/>
         scale:<b class='stats cont' type='text' id='scale_txt'></b><br/>
-        <button class='cont' id='double_btn'>Zoom out</button>
-        <button class='cont' id='half_btn'>Zoom in</button><br>
+        <button class='cont' id='zoom_out_btn'>Zoom out</button>
+        <button class='cont' id='zoom_in_btn'>Zoom in</button><br>
         Number of threads:
         <select name="threads" id="thread_n_select">
             <option value="1">1</option>
@@ -155,8 +155,8 @@
         var startx_txt = document.getElementById('startx_txt')
         var starty_txt = document.getElementById('starty_txt')
         var scale_txt = document.getElementById('scale_txt')
-        var double_b = document.getElementById('double_btn')
-        var half_b = document.getElementById('half_btn')
+        var zoom_out_b = document.getElementById('zoom_out_btn')
+        var zoom_in_b = document.getElementById('zoom_in_btn')
 	    var status_log = document.getElementById('status_log')
         var nthread_select = document.getElementById('thread_n_select')
 
@@ -284,18 +284,19 @@
             location.reload()
         }
 
-        half_b.onclick = function(){
-	        if(threads_working == 0){
-            	render_info.scale /= 2
-            	do_draw()
-	        }
+
+        zoom_in_b.onclick = function(){
+            if(threads_working == 0){
+                render_info.scale /= 2
+                do_draw()
+            }
         }
 
-        double_b.onclick = function(){
-	        if(threads_working == 0){
-            	render_info.scale *= 2
-            	do_draw()
-	        }
+        zoom_out_b.onclick = function(){
+            if(threads_working == 0){
+                render_info.scale *= 2
+                do_draw()
+            }
         }
 
 
@@ -315,6 +316,25 @@
 
         }
 
+        canvas.onwheel = function(e){
+            var x = e.x-canvas.offsetLeft
+            var y = e.y-canvas.offsetTop
+
+            if(threads_working == 0){
+                var zoom_dir = Math.sign(e.deltaY)
+                if(zoom_dir == -1){
+                    render_info.scale /= 2
+           	        render_info.startx += (x-(render_info.scr_width/2))*render_info.scale
+           	        render_info.starty += (y-(render_info.scr_height/2))*render_info.scale
+                }else if(zoom_dir == 1){
+                    render_info.scale *= 2
+                }else{
+                    return
+                }
+                do_draw()
+            }
+
+        }
 
         
        do_draw()
