@@ -43,7 +43,7 @@
     
            mod = (a,b) => ((a%b)+b)%b
 
-            //renderInfo: {scr_width,scr_height,startx,starty,scale,hue,sat}
+            //renderInfo: {scr_width,scr_height,startx,starty,scale,hue,sat,max_iter}
             //screenSegment: {offsety: offsety, buf: Uint8ClampedArray}
             constructor(renderInfo,screenSegment){
                 Object.assign(this,renderInfo)
@@ -53,7 +53,7 @@
             check_divergence(c_r,c_i){
                 var z = [0,0]
                 var i = 0
-                while( i <= 100 && Math.sqrt(z[0]*z[0] + z[1]*z[1]) < 4 ){
+                while( i < this.max_iter && Math.sqrt(z[0]*z[0] + z[1]*z[1]) < 4 ){
                     z = [z[0]*z[0] - z[1]*z[1] + c_r,   // z_r = z_r^2 - z_i^2 + c_r
                         2*z[0]*z[1] + c_i]              // z_i = z_r*z_i + z_r*z_i + c_i
                     i++
@@ -126,7 +126,7 @@
                 if(init){
                     MandelbrotDraw = (new Function('return ('+e.data[3]+')'))()
                     thread_id = e.data[0]
-                    mandelbrot = new MandelbrotDraw({scr_width: 0,scr_height: 0,startx: 0,starty:0,scale:0,hue:0,sat:0},{offsety: e.data[1], seg_len: e.data[2], buf: null})
+                    mandelbrot = new MandelbrotDraw({scr_width: 0,scr_height: 0,startx: 0,starty:0,scale:0,hue:0,sat:0,max_iter:0},{offsety: e.data[1], seg_len: e.data[2], buf: null})
                     //console.log(`Thread #${thread_id} is ready`)
                     init = false
                 }else{
@@ -170,7 +170,8 @@
                 starty: 0,
                 scale: 0.004,
                 hue: 100,
-                sat: 100
+                sat: 100,
+                max_iter: 500
             }
 
 
