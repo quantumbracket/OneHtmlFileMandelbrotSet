@@ -219,7 +219,7 @@
 	        }
         }
 
-        if(n_threads > 1 && typeof Worker !== "undefined"){
+        if(typeof Worker !== "undefined"){
             var scr_seg_size = ~~(render_info.scr_height/n_threads)
             var buf_off_size = []
             for(var x=0;x<n_threads;x++){
