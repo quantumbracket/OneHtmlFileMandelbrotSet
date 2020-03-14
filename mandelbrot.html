@@ -104,7 +104,8 @@
                        var rx = (x-(this.scr_width/2))*this.scale + this.startx
                        var ry = (y-(this.scr_height/2))*this.scale + this.starty
                        var [i,z] = this.check_divergence(rx,ry)
-                       this.write_pix(x,y,this.hue+i%360,this.sat,i%100)
+                       var clr = i + 1 - Math.log(Math.log2(Math.sqrt(z[0]*z[0] + z[1]*z[1])))
+                       this.write_pix(x,y,(this.hue + (clr/(this.max_iter+1))*360)%360,this.sat,i%100)
                    }
                }
     
@@ -171,7 +172,7 @@
                 scale: 0.004,
                 hue: 100,
                 sat: 100,
-                max_iter: 500
+                max_iter: 200
             }
 
 
